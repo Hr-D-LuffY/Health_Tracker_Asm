@@ -4,37 +4,36 @@
 
 ; ---------------- DATA SECTION ---------------- 
 
-; ==========================
-; Variable for Feature 1: Weekly Progress Tracker
-; ==========================
-msg_feedback_tip_1 db 13,10,"KEEP SETTING NEW GOALS AND BREAKING THEM!$"
 
-; Data arrays for tracking progress for each day
-week1 db 7 dup(?), 10, 10, 10, 10, 10, 10, 10   ; Monday to Sunday initial values (stored at +8..+14)
-week2 db 7 dup(?), 15, 15, 15, 15, 15, 15, 15   ; Previous week data for comparison
-goal db 50                                       ; Calories rate per exercise
-goal_remaining db 30                            ; Remaining days to reach goal
-prev_goal_remaining db 30                       ; Track previous day count for adjustment
-msg_progress_updated db 13,10,"PROGRESS UPDATED: INCREASED BY 10$"
-msg_select_day db 13,10,"SELECT DAY (1=MON, 2=TUE, 3=WED, 4=THU, 5=FRI, 6=SAT, 7=SUN): $"
-msg_day_selected db 13,10,"DAY SELECTED: $"
-msg_current_progress db 13,10,"CURRENT PROGRESS: $" 
-msg_compare db 13,10,"PROGRESS INCREASED TODAY. KEEP IT UP!$" 
-msg_decreased db 13,10,"PROGRESS DECREASED TODAY. DON'T GIVE UP!$" 
-msg_invalid_day db 13,10,"INVALID DAY. PLEASE ENTER 1..7.$"
+; Variable for Feature 1: Steps Counter & Goal
 
-; =======================================
+step_goal dw 1000                              ; Daily step goal (default: 10,000 steps)
+current_steps dw 0                              ; Current steps taken today
+msg_set_step_goal db 13,10,"SET DAILY STEP GOAL (1000-9999): $"
+msg_current_steps_input db 13,10,"ENTER TODAY'S STEPS TAKEN: $"
+msg_goal_display db 13,10,"DAILY STEP GOAL: $"
+msg_steps_display db 13,10,"CURRENT STEPS: $"
+msg_remaining_steps db 13,10,"REMAINING TO REACH GOAL: $"
+msg_goal_reached db 13,10,"CONGRATULATIONS! STEP GOAL REACHED! KEEP MOVING!$"
+msg_goal_exceeded db 13,10,"AMAZING! YOU EXCEEDED YOUR STEP GOAL!$"
+msg_progress_display db 13,10,"PROGRESS: $"
+msg_percent db " %$"
+msg_steps db " STEPS$"
+msg_slash db " / $"
+msg_div_error db 13,10,"ERROR: Division by zero or overflow. Returning to menu.$"
+
+
 ; Variables for Feature 2: Imperial BMI Calculator
-; =======================================
+
 msg_weight db 13,10,"ENTER WEIGHT (in POUNDS, 3 DIGITS MAX): $"
 msg_height db 13,10,"ENTER HEIGHT (in INCHES): $"
 bmi_imperial db 0
 weight dw ?
 height db ?
 
-; ==========================
+
 ; Variables for Feature 3: Calories Burned per Exercise Type
-; ==========================
+
 msg_calories db 13,10,"CALORIES BURNED: $"
 exercise_menu db 13,10,"SELECT EXERCISE - 1=RUN  2=WALK  3=JUMP: $"
 duration_prompt db 13,10,"ENTER DURATION (IN MINUTES): $"
@@ -43,9 +42,9 @@ duration db ?
 calories_burned db 0
 choice db ?
 
-; =======================================
+
 ; Variables for Feature 4: Body Fat Percentage Calculator
-; =======================================
+
 msg_bmi db 13,10,"YOUR BMI IS: $"
 msg_body_fat db 13,10,"YOUR BODY FAT PERCENTAGE IS: $"
 msg_age db 13,10,"ENTER AGE (in YEARS): $"  ; Added message for age input
@@ -56,28 +55,28 @@ gender db ?
 bmi db ?  
 percent_sign db " %$"
 
-; ==========================
+
 ; Variables for Feature 5: Hydration Reminder & Tracker
-; ==========================
+
 msg_water_input db 13,10,"ENTER NUMBER OF GLASSES OF WATER TODAY: $"
 hydration db 0          ; Number of glasses of water consumed
 msg_water_low db 13,10,"DRINK MORE WATER!$"
 msg_water_good db 13,10,"GOOD HYDRATION LEVEL.$"
 
-; ==========================
+
 ; Variables for Feature 6: Sleep Duration Tracker
-; ==========================
+
 msg_sleep_input db 13,10,"ENTER AVERAGE HOURS OF SLEEP (1-9): $"
 sleep_avg db ?          ; Average sleep duration in hours
 msg_sleep_low db 13,10,"YOU NEED MORE SLEEP.$"
 msg_sleep_good db 13,10,"SLEEP DURATION IS OPTIMAL.$"
 msg_sleep_high db 13,10,"TOO MUCH SLEEP.$"
 
-; =======================================
+
 ; Main Menu Section
-; =======================================
+
 menu db 13,10,"========== HEALTH & FITNESS TRACKER =========="
-     db 13,10,"1. WEEKLY PROGRESS COMPARISON"
+     db 13,10,"1. STEPS COUNTER & GOAL TRACKER"
      db 13,10,"2. IMPERIAL BMI CALCULATOR"
      db 13,10,"3. CALORIES BURNED PER EXERCISE TYPE"
      db 13,10,"4. BODY FAT PERCENTAGE CALCULATOR"
@@ -85,11 +84,21 @@ menu db 13,10,"========== HEALTH & FITNESS TRACKER =========="
      db 13,10,"6. SLEEP DURATION TRACKER & ANALYSIS"
      db 13,10,"ENTER CHOICE (1-6): $"
 
-; ================================
+
 ; Start of Main Code
-; ================================
+
 .code
 main:
+    ; Set up interrupt handler for division error
+    push ds
+    xor ax, ax
+    mov ds, ax
+    mov ax, offset div_error_handler
+    mov [0], ax
+    mov ax, cs
+    mov [2], ax
+    pop ds
+
     mov ax, @data
     mov ds, ax
 
@@ -98,7 +107,7 @@ menu_loop:
     call print_msg
     call get_single_digit_input
     cmp al, 1         
-    je weekly_progress_comparison
+    je steps_counter_tracker
     cmp al, 2         
     je imperial_bmi_calculator
     cmp al, 3
@@ -112,93 +121,129 @@ menu_loop:
 
     jmp menu_loop
 
-;========================================================
-;=== Feature 1 START: Weekly Progress Comparison      ===
-;========================================================
-weekly_progress_comparison:
-    ; Ask user to select a day
-    lea dx, msg_select_day
-    call print_msg
-    call get_single_digit_input
-    
-    ; Validate day input (1-7)
-    cmp al, 1
-    jb invalid_day
-    cmp al, 7
-    ja invalid_day
-    
-    ; Store selected day (convert to 0-based index + 8 offset)
-    mov bl, al
-    add bl, 7              ; Add 7 to get to the valid data portion (index 8)
-    
-    ; Show which day was selected
-    lea dx, msg_day_selected
-    call print_msg
-    mov al, bl
-    sub al, 7              ; Convert back to 1-7 for display
-    call print_number
-    
-    ; Show current progress for selected day
-    lea dx, msg_current_progress
-    call print_msg
-    
-    ; Get and display current progress value
-    lea si, week1
-    mov bx, 0
-    mov bl, al             ; Put day number (1-7) in BL
-    add bl, 7              ; Move to valid data portion
-    mov al, [si+bx]
-    xor ah, ah
-    call print_number
-    
-    ; Increment progress by 10 for selected day
-    lea si, week1
-    add al, 10             ; Increment by 10
-    mov [si+bx], al        ; Store updated value
-    
-    ; Display update message
-    lea dx, msg_progress_updated
-    call print_msg
-    
-    ; Display new progress value
-    lea dx, msg_current_progress
-    call print_msg
-    xor ah, ah
-    mov al, [si+bx]
-    call print_number
-    
-    ; Compare with previous week's progress for the selected day
-    lea si, week1
-    lea di, week2
-    mov al, [si+bx]
-    cmp al, [di+bx]
-    ja label_msg_up
-    jb label_msg_down
-    
-label_msg_up:
-    lea dx, msg_compare
-    call print_msg
-    
-label_msg_down:
-    lea dx, msg_decreased
-    call print_msg
-    
+; Interrupt handler for division error
+div_error_handler:
+    lea dx, msg_div_error
+    mov ah, 9
+    int 21h
+    jmp menu_loop
 
 
-invalid_day:
-    lea dx, msg_invalid_day
+; Feature 1 START: Steps Counter & Goal Tracker    
+
+steps_counter_tracker:
+    ; Display current step goal
+    lea dx, msg_goal_display
+    call print_msg
+    mov ax, step_goal
+    call print_number
+    lea dx, msg_steps
+    call print_msg
+    
+    ; Ask if user wants to set a new goal
+    lea dx, msg_set_step_goal
+    call print_msg
+    call get_four_digit_input
+    
+    ; Validate goal input (1000-9999)
+    cmp ax, 1000
+    jb skip_goal_update
+    cmp ax, 9999
+    ja skip_goal_update
+    
+    ; Update goal
+    mov step_goal, ax
+    
+    ; Display updated goal
+    lea dx, msg_goal_display
+    call print_msg
+    mov ax, step_goal
+    call print_number
+    lea dx, msg_steps
+    call print_msg
+    
+skip_goal_update:
+    ; Ask for current steps
+    lea dx, msg_current_steps_input
+    call print_msg
+    call get_four_digit_input
+    mov current_steps, ax
+    
+    ; Display current steps
+    lea dx, msg_steps_display
+    call print_msg
+    mov ax, current_steps
+    call print_number
+    lea dx, msg_slash
+    call print_msg
+    mov ax, step_goal
+    call print_number
+    lea dx, msg_steps
+    call print_msg
+    
+    ; Calculate and display progress percentage
+    lea dx, msg_progress_display
+    call print_msg
+    
+    ; Check if step_goal is zero to avoid division by zero
+    mov ax, step_goal
+    cmp ax, 0
+    je skip_percentage      ; Skip percentage calculation if goal is 0
+    
+    ; Calculate percentage: (current_steps * 100) / step_goal
+    mov ax, current_steps
+    mov bx, 100
+    mul bx                  ; DX:AX = current_steps * 100
+    mov bx, step_goal
+    div bx                  ; AX = percentage (DX:AX / BX)
+    call print_number
+    lea dx, msg_percent
+    call print_msg
+    jmp check_goal_status
+    
+skip_percentage:
+    ; Display 0% if goal is 0
+    mov ax, 0
+    call print_number
+    lea dx, msg_percent
+    call print_msg
+    
+check_goal_status:
+    ; Check goal status and provide feedback
+    mov ax, current_steps
+    cmp ax, step_goal
+    ja goal_exceeded        ; If steps > goal
+    je goal_reached         ; If steps = goal
+    
+    ; Goal not reached - show remaining
+    lea dx, msg_remaining_steps
+    call print_msg
+    mov ax, step_goal
+    sub ax, current_steps
+    call print_number
+    lea dx, msg_steps
+    call print_msg
+    jmp menu_loop
+    
+goal_reached:
+    lea dx, msg_goal_reached
+    call print_msg
+    jmp menu_loop
+    
+goal_exceeded:
+    lea dx, msg_goal_exceeded
     call print_msg
     jmp menu_loop
 
-;========================================================
-;=== Feature 1 END                                     ===
-;========================================================
+
+; Feature 1 END                                     
 
 
 
-; ================================
+
+
 ; Feature 2: Imperial BMI Calculator
-; ================================
+
 imperial_bmi_calculator:
     ; Ask for weight (in pounds)
     lea dx, msg_weight
@@ -226,6 +271,7 @@ imperial_bmi_calculator:
     mul bx          ; DX:AX = weight * 703 (32-bit result)
     
     ; Step 3: Divide DX:AX by height^2 (SI)
+    xor dx, dx              ; Clear DX before division
     div si          ; AX = (weight * 703) / height^2, remainder in DX
     
     ; AX now contains the BMI value (floored due to integer division)
@@ -238,13 +284,13 @@ imperial_bmi_calculator:
     mov ah, 0               ; Clear AH for proper display
     call print_number
     jmp menu_loop
-; ================================
-; End of Feature 2: Imperial BMI Calculator
-; ================================
 
-;========================================================
-;=== Feature 3 START: Calories Burned Per Exercise    ===
-;========================================================
+; End of Feature 2: Imperial BMI Calculator
+
+
+
+; Feature 3 START: Calories Burned Per Exercise    
+
 calories_burned_calc:
     lea dx, exercise_menu
     call print_msg
@@ -306,15 +352,13 @@ invalid_exercise:
     lea dx, msg_invalid_exercise
     call print_msg
     jmp menu_loop    
-    
-;========================================================
-;=== Feature 3 END                                     ===
-;========================================================
+ ; Feature 3 END                                    
 
 
-; ================================
+
+
 ; Feature 4: Body Fat Percentage Calculator (FIXED)
-; ================================
+
 body_fat_calculator:
     lea dx, msg_bmi
     call print_msg
@@ -366,7 +410,7 @@ male_body_fat:
     ; Step 5: Divide by 100 to get final result (floor operation)
     mov ax, cx              
     mov bx, 100             
-    mov dx, 0               
+    xor dx, dx              ; Clear DX before division
     div bx                  
     
     mov body_fat, al        ; Store the floored result
@@ -396,7 +440,7 @@ female_body_fat:
     ; Step 5: Divide by 100 to get final result (floor operation)
     mov ax, cx              
     mov bx, 100             
-    mov dx, 0               
+    xor dx, dx              ; Clear DX before division
     div bx
     
     mov body_fat, al        ; Store the floored result
@@ -412,13 +456,13 @@ display_body_fat:
     call print_msg          
     jmp menu_loop
 
-; ================================
-; End of Feature 4: Body Fat Percentage Calculator
-; ================================
 
-;========================================================
+; End of Feature 4: Body Fat Percentage Calculator
+
+
+
 ;=== Feature 5 START: Hydration Reminder & Tracker    ===
-;========================================================
+
 hydration_tracker:
     lea dx, msg_water_input
     call print_msg
@@ -434,13 +478,13 @@ not_enough_water:
     lea dx, msg_water_low
     call print_msg
     jmp menu_loop
-;========================================================
-;=== Feature 5 END                                     ===
-;========================================================
 
-;========================================================
-;=== Feature 6 START: Sleep Duration Tracker          ===
-;========================================================
+; Feature 5 END                                   
+
+
+
+; Feature 6 START: Sleep Duration Tracker          
+
 sleep_tracker:
     lea dx, msg_sleep_input
     call print_msg
@@ -463,13 +507,13 @@ too_much_sleep:
     lea dx, msg_sleep_high
     call print_msg
     jmp menu_loop
-;========================================================
-;=== Feature 6 END                                     ===
-;========================================================
 
-; ============================
+;=== Feature 6 END                                     
+
+
+
 ; Utility Procedures START
-; ============================
+
 ; Prints unsigned number in AX (no leading zeros)
 print_number:
     push ax
@@ -574,9 +618,56 @@ get_three_digit_input PROC NEAR
     ret
 get_three_digit_input ENDP
 
+; Procedure to get a four-digit input (0..9999)
+get_four_digit_input PROC NEAR
+    mov ah, 01h
+    int 21h
+    sub al, '0'
+    mov bl, al          ; First digit
+    
+    mov ah, 01h
+    int 21h
+    sub al, '0'
+    mov bh, al          ; Second digit
+    
+    mov ah, 01h
+    int 21h
+    sub al, '0'
+    mov cl, al          ; Third digit
+    
+    mov ah, 01h
+    int 21h
+    sub al, '0'
+    mov ch, al          ; Fourth digit
+    
+    ; Calculate: (first * 1000) + (second * 100) + (third * 10) + fourth
+    mov al, bl
+    mov ah, 0
+    mov si, 1000
+    mul si              ; AX = first digit * 1000
+    mov di, ax          ; Store in DI
+    
+    mov al, bh
+    mov ah, 0
+    mov si, 100
+    mul si              ; AX = second digit * 100
+    add di, ax          ; Add to result
+    
+    mov al, cl
+    mov ah, 0
+    mov si, 10
+    mul si              ; AX = third digit * 10
+    add di, ax          ; Add to result
+    
+    mov al, ch
+    mov ah, 0           ; AX = fourth digit
+    add ax, di          ; Final result in AX
+    
+    ret
+get_four_digit_input ENDP
 
 
-; ============================
+
 ; Utility Procedures END
-; ============================
+
 end main

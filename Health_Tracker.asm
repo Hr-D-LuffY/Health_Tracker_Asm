@@ -52,7 +52,9 @@ msg_age db 13,10,"ENTER AGE (in YEARS): $"  ; Added message for age input
 msg_gender db 13,10,"ENTER GENDER (1=MALE, 2=FEMALE): $"  ; Added message for gender input
 body_fat db 0
 age db ?
-gender db ?
+gender db ? 
+bmi db ?  
+percent_sign db " %$"
 
 ; ==========================
 ; Variables for Feature 5: Hydration Reminder & Tracker
@@ -316,22 +318,19 @@ invalid_exercise:
 
 
 ; ================================
-; Feature 4: Body Fat Percentage Calculator
+; Feature 4: Body Fat Percentage Calculator (FIXED)
 ; ================================
 body_fat_calculator:
-    ; Ask for BMI
     lea dx, msg_bmi
     call print_msg
-    call get_two_digit_input
-    mov bmi_imperial, al   ; Use the BMI we already calculated or input by the user
+    call get_two_digit_input  
+    mov bmi, al      
     
-    ; Ask for age
     lea dx, msg_age
     call print_msg
     call get_two_digit_input
     mov age, al
     
-    ; Ask for gender (1 for Male, 2 for Female)
     lea dx, msg_gender
     call print_msg
     call get_single_digit_input
@@ -341,52 +340,81 @@ body_fat_calculator:
     ; For Male: body fat = (1.20 * BMI) + (0.23 * age) - 16.2
     ; For Female: body fat = (1.20 * BMI) + (0.23 * age) - 5.4
     
-    ; Calculate body fat for males
     cmp gender, 1
     je male_body_fat
-    
-    ; Calculate body fat for females
     cmp gender, 2
     je female_body_fat
     jmp menu_loop
     
 male_body_fat:
-    ; Formula for male body fat percentage
-    mov al, bmi_imperial
-    ; 1.20 * BMI
-    mov ah, 0
-    mov bl, 120      ; 1.20 as integer (scaled up)
-    mul bl           ; AL = 1.20 * BMI
+    ; Scale everything by 100 to handle decimals
     
-    ; Add (0.23 * age)
-    add al, age
-    ; Subtract 16.2 (since we can't do floating-point, assume 16.2 = 16 for simplicity)
-    sub al, 16
+    ; Step 1: Calculate 1.20 * BMI = 120 * BMI / 100
+    mov al, bmi    
+    mov ah, 0               
+    mov bx, 120             
+    mul bx                  
+    mov cx, ax              
     
-    mov body_fat, al
+    ; Step 2: Calculate 0.23 * age = 23 * age / 100
+    mov al, age             
+    mov ah, 0               
+    mov bx, 23              
+    mul bx                  
+    
+    ; Step 3: Add the two terms
+    add cx, ax              ; CX = (120 * BMI) + (23 * age)
+    
+    ; Step 4: Subtract 16.2 = 1620 (scaled by 100)
+    sub cx, 1620            
+    
+    ; Step 5: Divide by 100 to get final result (floor operation)
+    mov ax, cx              
+    mov bx, 100             
+    mov dx, 0               
+    div bx                  
+    
+    mov body_fat, al        ; Store the floored result
     jmp display_body_fat
 
 female_body_fat:
-    ; Formula for female body fat percentage
-    mov al, bmi_imperial
-    ; 1.20 * BMI
-    mov ah, 0
-    mov bl, 120      ; 1.20 as integer (scaled up)
-    mul bl           ; AL = 1.20 * BMI
     
-    ; Add (0.23 * age)
-    add al, age
-    ; Subtract 5.4 (since we can't do floating-point, assume 5.4 = 5 for simplicity)
-    sub al, 5
+    ; Step 1: Calculate 1.20 * BMI = 120 * BMI / 100
+    mov al, bmi    
+    mov ah, 0               
+    mov bx, 120             
+    mul bx                  
+    mov cx, ax              
     
-    mov body_fat, al
+    ; Step 2: Calculate 0.23 * age = 23 * age / 100
+    mov al, age             
+    mov ah, 0               
+    mov bx, 23              
+    mul bx                 
+    
+    ; Step 3: Add the two terms
+    add cx, ax              ; CX = (120 * BMI) + (23 * age)
+    
+    ; Step 4: Subtract 5.4 = 540 (scaled by 100)
+    sub cx, 540           
+    
+    ; Step 5: Divide by 100 to get final result (floor operation)
+    mov ax, cx              
+    mov bx, 100             
+    mov dx, 0               
+    div bx
+    
+    mov body_fat, al        ; Store the floored result
+
 
 display_body_fat:
-    ; Display body fat percentage
     lea dx, msg_body_fat
     call print_msg
-    mov al, body_fat
-    call print_number
+    mov al, body_fat        
+    mov ah, 0               
+    call print_number      
+    lea dx, percent_sign   
+    call print_msg          
     jmp menu_loop
 
 ; ================================

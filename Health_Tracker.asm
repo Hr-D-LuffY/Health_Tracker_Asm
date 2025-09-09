@@ -40,11 +40,8 @@ exercise_menu db 13,10,"SELECT EXERCISE - 1=RUN  2=WALK  3=JUMP: $"
 duration_prompt db 13,10,"ENTER DURATION (IN MINUTES): $"
 msg_invalid_exercise db 13,10,"INVALID EXERCISE TYPE SELECTED.$"
 duration db ?
-rate db ?
 calories_burned db 0
-run_rate db 10    ; Running: 10 calories per minute
-walk_rate db 5    ; Walking: 5 calories per minute
-jump_rate db 7    ; Jumping: 7 calories per minute
+choice db ?
 
 ; =======================================
 ; Variables for Feature 4: Body Fat Percentage Calculator
@@ -252,70 +249,67 @@ imperial_bmi_calculator:
 ;=== Feature 3 START: Calories Burned Per Exercise    ===
 ;========================================================
 calories_burned_calc:
-    ; Display exercise selection menu
     lea dx, exercise_menu
     call print_msg
-    call get_single_digit_input
-   
-    ; Validate exercise choice (1-3)
+    call get_single_digit_input  
+    
     cmp al, 1
     jb invalid_exercise
     cmp al, 3
     ja invalid_exercise
    
-    ; Store valid exercise type
-    mov bl, al                   ; BL = 1(run)/2(walk)/3(jump)
+    mov choice, al                   ; BL = 1(run)/2(walk)/3(jump)
    
-    ; Get exercise duration
     lea dx, duration_prompt
     call print_msg
-    call get_two_digit_input     ; AL = 0..99 minutes
-    mov duration, al             ; Store duration
+    call get_two_digit_input     
+    mov duration, al             
    
-    ; Set rate based on exercise type
+    mov bl,choice
     cmp bl, 1
-    je set_run_rate
+    je set_run_rate         
     cmp bl, 2
     je set_walk_rate
-    ; else 3 = jump
-    mov al, jump_rate
-    jmp perform_calculation
+    mov al, 7               ; Jumping: 7 calories per minute
+    jmp perform_calculation  
    
 set_run_rate:
-    mov al, run_rate
+    mov al, 10            ; Running: 10 calories per minute
     jmp perform_calculation
    
 set_walk_rate:
-    mov al, walk_rate
-   
+    mov al, 5             ; Walking: 5 calories per minute
+    jmp perform_calculation
+
 perform_calculation:
-    mov rate, al                 ; Save rate
-    xor ah, ah                   ; AX = rate
-    mov bl, duration             ; BX = duration
-    xor bh, bh
-    mul bx                       ; AX = AX * BX
+    mov ah, 0           
+
+    mov bl, duration      
+    mov bh, 0          
+
+    ; Perform multiplication (rate * duration)
+    mul bx                
     
-    ; Cap to 255
     cmp ax, 255
     jbe store_result
-    mov ax, 255
-   
+    mov ax, 255           ; If AX > 255, set AX to 255
+
 store_result:
-    mov calories_burned, al
-   
-    ; Display calories burned
+    mov calories_burned, al  
+
     lea dx, msg_calories
     call print_msg
    
-    xor ah, ah
-    mov al, calories_burned
-    call print_number
-    jmp menu_loop
+    mov ah, 0               
+    mov al, calories_burned 
+    call print_number        
+    jmp menu_loop         
    
 invalid_exercise:
     lea dx, msg_invalid_exercise
     call print_msg
-    jmp menu_loop
+    jmp menu_loop    
+    
 ;========================================================
 ;=== Feature 3 END                                     ===
 ;========================================================

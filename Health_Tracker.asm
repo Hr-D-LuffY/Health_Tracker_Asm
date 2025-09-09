@@ -29,7 +29,7 @@ msg_invalid_day db 13,10,"INVALID DAY. PLEASE ENTER 1..7.$"
 msg_weight db 13,10,"ENTER WEIGHT (in POUNDS, 3 DIGITS MAX): $"
 msg_height db 13,10,"ENTER HEIGHT (in INCHES): $"
 bmi_imperial db 0
-weight db ?
+weight dw ?
 height db ?
 
 ; ==========================
@@ -203,8 +203,8 @@ imperial_bmi_calculator:
     ; Ask for weight (in pounds)
     lea dx, msg_weight
     call print_msg
-    call get_three_digit_input  ; Now calling the procedure for 3-digit input
-    mov weight, al             ; Store the 8-bit weight in AL (lower byte of AX)
+    call get_three_digit_input  ; Get 3-digit input for weight
+    mov weight, ax             ; Store the 16-bit weight in AX
     
     ; Ask for height (in inches)
     lea dx, msg_height
@@ -212,37 +212,32 @@ imperial_bmi_calculator:
     call get_two_digit_input
     mov height, al
     
-    ; Calculate BMI using the imperial formula
-    ; BMI = (weight / height^2) * 703
+    ; Calculate BMI using the imperial formula: BMI = (weight * 703) / height^2
     
     ; Step 1: Square height (height^2)
     mov al, height
-    mov ah, al      ; AH = height (in inches)
+    mov ah, 0       ; Clear AH for proper multiplication
     mul al          ; AX = height * height (height^2)
-    
     mov si, ax      ; Store height^2 in SI
     
-    ; Step 2: BMI = (weight / height^2) * 703
-    ; Move weight (8-bit) into AX
-    mov al, weight           ; AL = weight (8-bit value)
+    ; Step 2: Calculate weight * 703 using 32-bit arithmetic
+    mov ax, weight  ; AX = weight (176)
+    mov bx, 703     ; BX = 703
+    mul bx          ; DX:AX = weight * 703 (32-bit result)
     
-    ; Divide weight by height^2
-    mov dx, 0               ; Clear DX for division (DX:AX will hold the 32-bit value)
-    div si                  ; AX = weight / height^2, result in AX (BMI)
+    ; Step 3: Divide DX:AX by height^2 (SI)
+    div si          ; AX = (weight * 703) / height^2, remainder in DX
     
-    ; Step 3: Multiply the result by 703
-    mov bx, 703             ; Load 703 into BX
-    mul bx                  ; AX = BMI * 703 (scaled)
-    
-    mov bmi_imperial, al  ; Store BMI result in bmi_imperial
-    
+    ; AX now contains the BMI value (floored due to integer division)
+    mov bmi_imperial, al    ; Store BMI result
+
     ; Display BMI
     lea dx, msg_bmi
     call print_msg
     mov al, bmi_imperial
+    mov ah, 0               ; Clear AH for proper display
     call print_number
     jmp menu_loop
-
 ; ================================
 ; End of Feature 2: Imperial BMI Calculator
 ; ================================
@@ -545,35 +540,38 @@ get_two_digit_input ENDP
 
 ; Procedure to get a three-digit input (0..999)
 get_three_digit_input PROC NEAR
-    ; Get the first digit
     mov ah, 01h         
     int 21h              
     sub al, '0'          
     mov bl, al           
-
-    ; Get the second digit
+    
     mov ah, 01h
     int 21h
     sub al, '0'          
-    mov bh, al          
+    mov bh, al           
 
-    ; Get the third digit
     mov ah, 01h
-    int 21h
-    sub al, '0'          
+        int 21h
+    sub al, '0'
+    mov cl, al           
 
-    mov al, bl           
-    mov cl, 100          
-    mul cl               
+    mov al, bl
+    mov ah, 0           
+    mov si, 100          
+    mul si              
+    mov di, ax          
     
     mov al, bh           
-    mov cl, 10          
-    mul cl               
-    add ax, bx          
+    mov ah, 0          
+    mov si, 10           
+    mul si               
+    add di, ax          
     
-    add ax, ax           
-    mov al, ah           
-   ret
+    mov al, cl           
+    mov ah, 0          
+    add ax, di           
+    
+    ret
 get_three_digit_input ENDP
 
 

@@ -477,36 +477,41 @@ too_much_sleep:
 ; ============================
 ; Procedure to print a number in AX (unsigned, no leading zeros)
 print_number PROC NEAR
-    push ax
-    push bx
-    push cx
-    push dx
-    mov bx, 10
-    xor cx, cx
-    test ax, ax
-    jnz pn_convert
+    ; Handle special case of 0
+    cmp al, 0
+    jne not_zero
     mov dl, '0'
     mov ah, 2
     int 21h
-    jmp pn_done
-pn_convert:
-    xor dx, dx
-    div bx
-    push dx
-    inc cx
-    test ax, ax
-    jnz pn_convert
-pn_print:
-    pop dx
-    add dl, '0'
-    mov ah, 2
-    int 21h
-    loop pn_print
-pn_done:
-    pop dx
-    pop cx
-    pop bx
-    pop ax
+    ret
+
+not_zero:
+    ; For numbers 1-99, we only need to handle max 2 digits
+    mov bl, al          
+    
+    cmp al, 10
+    jb print_units     
+    
+    mov ah, 0           
+    mov cl, 10          
+    div cl              
+    mov dl, al          
+    add dl, '0'         
+    mov ah, 2           
+    int 21h             
+    
+    mov al, bl          
+    mov ah, 0          
+    mov cl, 10         
+    div cl              
+    mov al, ah          
+
+print_units:
+    add al, '0'        
+    mov dl, al         
+    mov ah, 2           
+    int 21h         
+    
     ret
 print_number ENDP
 
@@ -547,37 +552,33 @@ get_two_digit_input ENDP
 ; Procedure to get a three-digit input (0..999)
 get_three_digit_input PROC NEAR
     ; Get the first digit
-    mov ah, 01h          ; DOS function to read a character
-    int 21h              ; Input character into AL
-    sub al, '0'          ; Convert ASCII to integer
-    mov bl, al           ; Store first digit in BL
+    mov ah, 01h         
+    int 21h              
+    sub al, '0'          
+    mov bl, al           
 
     ; Get the second digit
     mov ah, 01h
     int 21h
-    sub al, '0'          ; Convert ASCII to integer
-    mov bh, al           ; Store second digit in BH
+    sub al, '0'          
+    mov bh, al          
 
     ; Get the third digit
     mov ah, 01h
     int 21h
-    sub al, '0'          ; Convert ASCII to integer
+    sub al, '0'          
 
-    ; Calculate the number
-    ; Step 1: First digit * 100
-    mov al, bl           ; Load the first digit
-    mov cl, 100          ; Load the multiplier (100)
-    mul cl               ; AL = AL * 100, result in AX
-
-    ; Step 2: Second digit * 10
-    mov al, bh           ; Load the second digit
-    mov cl, 10           ; Load the multiplier (10)
-    mul cl               ; AL = AL * 10, result in AX
-    add ax, bx           ; Add the previous result (first digit * 100)
-
-    ; Step 3: Add the third digit
-    add ax, ax           ; Add the third digit
-    mov al, ah           ; Copy the high byte to AL to print it
+    mov al, bl           
+    mov cl, 100          
+    mul cl               
+    
+    mov al, bh           
+    mov cl, 10          
+    mul cl               
+    add ax, bx          
+    
+    add ax, ax           
+    mov al, ah           
    ret
 get_three_digit_input ENDP
 

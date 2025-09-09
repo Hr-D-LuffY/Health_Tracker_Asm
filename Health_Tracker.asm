@@ -475,45 +475,39 @@ too_much_sleep:
 ; ============================
 ; Utility Procedures START
 ; ============================
-; Procedure to print a number in AX (unsigned, no leading zeros)
-print_number PROC NEAR
-    ; Handle special case of 0
-    cmp al, 0
-    jne not_zero
+; Prints unsigned number in AX (no leading zeros)
+print_number:
+    push ax
+    push bx
+    push cx
+    push dx
+    mov bx, 10
+    xor cx, cx
+    test ax, ax
+    jnz pn_convert
     mov dl, '0'
     mov ah, 2
     int 21h
+    jmp pn_done
+pn_convert:
+    xor dx, dx
+    div bx
+    push dx
+    inc cx
+    test ax, ax
+    jnz pn_convert
+pn_print:
+    pop dx
+    add dl, '0'
+    mov ah, 2
+    int 21h
+    loop pn_print
+pn_done:
+    pop dx
+    pop cx
+    pop bx
+    pop ax
     ret
-
-not_zero:
-    ; For numbers 1-99, we only need to handle max 2 digits
-    mov bl, al          
-    
-    cmp al, 10
-    jb print_units     
-    
-    mov ah, 0           
-    mov cl, 10          
-    div cl              
-    mov dl, al          
-    add dl, '0'         
-    mov ah, 2           
-    int 21h             
-    
-    mov al, bl          
-    mov ah, 0          
-    mov cl, 10         
-    div cl              
-    mov al, ah          
-
-print_units:
-    add al, '0'        
-    mov dl, al         
-    mov ah, 2           
-    int 21h         
-    
-    ret
-print_number ENDP
 
 ; Procedure to print a message at DS:DX ending with '$'
 print_msg PROC NEAR
